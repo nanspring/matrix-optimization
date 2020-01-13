@@ -26,7 +26,8 @@ NO_BLAS = 1
 include $(PUB)/Arch/arch.gnu_c99.generic
 else
 ifneq ($(AMAZON), 0)
-atlas := 1
+atlas := 0
+openblas := 1
 multi := 0
 NO_BLAS = 1
 include $(PUB)/Arch/arch.gnu_c99.generic
