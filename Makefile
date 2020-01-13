@@ -26,8 +26,7 @@ NO_BLAS = 1
 include $(PUB)/Arch/arch.gnu_c99.generic
 else
 ifneq ($(AMAZON), 0)
-atlas := 0
-openblas := 1
+atlas := 1
 multi := 0
 NO_BLAS = 1
 include $(PUB)/Arch/arch.gnu_c99.generic
@@ -67,7 +66,7 @@ endif
 OPTIMIZATION = $(MY_OPT)
 
 targets = benchmark-naive benchmark-blocked benchmark-blas
-objects = benchmark.o sgemm-naive.o sgemm-blocked.o sgemm-blas.o  
+objects = benchmark.o dgemm-naive.o dgemm-blocked.o dgemm-blas.o  
 UTIL   = wall_time.o cmdLine.o
 
 .PHONY : default
@@ -76,11 +75,11 @@ default : all
 .PHONY : all
 all : clean $(targets)
 
-benchmark-naive : benchmark.o sgemm-naive.o  $(UTIL)
+benchmark-naive : benchmark.o dgemm-naive.o  $(UTIL)
 	$(CC) -o $@ $^ $(LDLIBS)
-benchmark-blocked : benchmark.o sgemm-blocked.o $(UTIL)
+benchmark-blocked : benchmark.o dgemm-blocked.o $(UTIL)
 	$(CC) -o $@ $^ $(LDLIBS) -pg
-benchmark-blas : benchmark.o sgemm-blas.o $(UTIL)
+benchmark-blas : benchmark.o dgemm-blas.o $(UTIL)
 	$(CC) -o $@ $^ $(LDLIBS)
 
 %.o : %.c
