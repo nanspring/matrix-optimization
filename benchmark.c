@@ -54,7 +54,7 @@ void fill (double* p, int n)
   long int Rmax_2 = Rmax >> 1;
   long int RM     =  Rmax_2 + 1;
   for (int i = 0; i < n; ++i){
-    long int r = random();   // Uniformly distributed ints over [0,RAND_MAX]
+    long int r = rand();   // Uniformly distributed ints over [0,RAND_MAX]
                              // Typical value of RAND_MAX: 2^31 - 1
     long int R = r - RM;
     p[i] = (double) R / (double) RM; // Uniformly distributed over [-1, 1]
