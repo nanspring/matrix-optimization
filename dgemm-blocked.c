@@ -18,6 +18,8 @@ const char *dgemm_desc = "Simple blocked dgemm.";
 
 #define min(a, b) (((a) < (b)) ? (a) : (b))
 
+void do_block_4(int lda, double *A, double *B, double *C);
+
 /* This auxiliary subroutine performs a smaller dgemm operation
  *  C := C + A * B
  * where C is M-by-N, A is M-by-K, and B is K-by-N. */
@@ -27,28 +29,37 @@ static void do_block(int lda, int M, int N, int K, double *A, double *B, double 
   int block_edge_m = M / L1_BLOCK_SIZE * L1_BLOCK_SIZE;
   int block_edge_n = N / L1_BLOCK_SIZE * L1_BLOCK_SIZE;
   int block_edge_k = K / L1_BLOCK_SIZE * L1_BLOCK_SIZE;
-  /* compute blocks that can be evenly divided */
-  for (int i = 0; i < block_edge_m; i += L1_BLOCK_SIZE)
+  for (int i = 0; i < M; i += L1_BLOCK_SIZE)
   {
-    for (int j = 0; j < block_edge_n; j += L1_BLOCK_SIZE)
+    for (int j = 0; j < N; j += L1_BLOCK_SIZE)
     {
-      for (int k = 0; k < block_edge_k; k += L1_BLOCK_SIZE)
+      for (int k = 0; k < K; k += L1_BLOCK_SIZE)
       {
-        do_block_4(lda, A + i * lda + j, B + k * lda + j, C + i * lda + j);
+        /* compute blocks that can be evenly divided */
+        if (i < block_edge_m && j < block_edge_n && k < block_edge_k)
+        {
+          do_block_4(lda, A + i * lda + k, B + k * lda + j, C + i * lda + j);
+        }
+        /* compute rest of matrix that cannot fit into blocks */
+        else
+        {
+          int i_edge = min(L1_BLOCK_SIZE, M - i);
+          int j_edge = min(L1_BLOCK_SIZE, N - j);
+          int k_edge = min(L1_BLOCK_SIZE, K - k);
+          for (int i1 = i; i1 < i + i_edge; i1++)
+          {
+            for (int j1 = j; j1 < j + j_edge; j1++)
+            {
+              register double cij = C[i1 * lda + j1];
+              for (int k1 = k; k1 < k + k_edge; k1++)
+              {
+                cij += A[i1 * lda + k1] * B[k1 * lda + j1];
+              }
+              C[i1 * lda + j1] = cij;
+            }
+          }
+        }
       }
-    }
-  }
-  /* compute the part at the edge that can not fit into blocks */
-  for (int i = block_edge_m; i < M; i++)
-  {
-    for (int j = block_edge_n; j < N; j++)
-    {
-      double cij = C[i * lda + j];
-      for (int k = block_edge_k; k < K; k++)
-      {
-        cij += A[i * lda + k] * B[k * lda + j];
-      }
-      C[i * lda + j] = cij;
     }
   }
 #else
