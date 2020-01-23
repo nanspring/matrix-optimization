@@ -8,6 +8,7 @@
 
 const char* dgemm_desc = "Simple blocked dgemm.";
 
+
 #include <immintrin.h>
 #include <avx2intrin.h>
 #if !defined(BLOCK_SIZE)
