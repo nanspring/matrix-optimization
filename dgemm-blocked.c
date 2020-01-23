@@ -70,6 +70,37 @@ static void do_block(int lda, int M, int N, int K, double *A, double *B, double 
 #endif
 }
 
+#ifdef REGISTERTILE
+#include <immintrin.h>
+#include <avx2intrin.h>
+/* C[4*4] = A[4*4] * B[4*4]
+*/
+void do_block_4(int lda, double *A, double *B, double *C)
+{
+  register __m256d c0x = _mm256_loadu_pd(C);
+  register __m256d c1x = _mm256_loadu_pd(C + lda);
+  register __m256d c2x = _mm256_loadu_pd(C + 2 * lda);
+  register __m256d c3x = _mm256_loadu_pd(C + 3 * lda);
+  for (int kk = 0; kk < 4; kk++)
+  {
+    register __m256d a0x = _mm256_broadcast_sd(A + kk);
+    register __m256d a1x = _mm256_broadcast_sd(A + kk + lda);
+    register __m256d a2x = _mm256_broadcast_sd(A + kk + 2 * lda);
+    register __m256d a3x = _mm256_broadcast_sd(A + kk + 3 * lda);
+    register __m256d b = _mm256_loadu_pd(B + kk * lda);
+
+    c0x = _mm256_fmadd_pd(a0x, b, c0x);
+    c1x = _mm256_fmadd_pd(a1x, b, c1x);
+    c2x = _mm256_fmadd_pd(a2x, b, c2x);
+    c3x = _mm256_fmadd_pd(a3x, b, c3x);
+  }
+  _mm256_storeu_pd(C, c0x);
+  _mm256_storeu_pd(C + lda, c1x);
+  _mm256_storeu_pd(C + 2 * lda, c2x);
+  _mm256_storeu_pd(C + 3 * lda, c3x);
+}
+#endif
+
 /* This routine performs a dgemm operation
  *  C := C + A * B
  * where A, B, and C are lda-by-lda matrices stored in row-major order
@@ -114,34 +145,3 @@ void square_dgemm(int lda, double *A, double *B, double *C)
     }
 #endif
 }
-
-#ifdef REGISTERTILE
-#include <immintrin.h>
-#include <avx2intrin.h>
-/* C[4*4] = A[4*4] * B[4*4]
-*/
-void do_block_4(int lda, double *A, double *B, double *C)
-{
-  register __m256d c0x = _mm256_loadu_pd(C);
-  register __m256d c1x = _mm256_loadu_pd(C + lda);
-  register __m256d c2x = _mm256_loadu_pd(C + 2 * lda);
-  register __m256d c3x = _mm256_loadu_pd(C + 3 * lda);
-  for (int kk = 0; kk < 4; kk++)
-  {
-    register __m256d a0x = _mm256_broadcast_sd(A + kk);
-    register __m256d a1x = _mm256_broadcast_sd(A + kk + lda);
-    register __m256d a2x = _mm256_broadcast_sd(A + kk + 2 * lda);
-    register __m256d a3x = _mm256_broadcast_sd(A + kk + 3 * lda);
-    register __m256d b = _mm256_loadu_pd(B + kk * lda);
-
-    c0x = _mm256_fmadd_pd(a0x, b, c0x);
-    c1x = _mm256_fmadd_pd(a1x, b, c1x);
-    c2x = _mm256_fmadd_pd(a2x, b, c2x);
-    c3x = _mm256_fmadd_pd(a3x, b, c3x);
-  }
-  _mm256_storeu_pd(C, c0x);
-  _mm256_storeu_pd(C + lda, c1x);
-  _mm256_storeu_pd(C + 2 * lda, c2x);
-  _mm256_storeu_pd(C + 3 * lda, c3x);
-}
-#endif
