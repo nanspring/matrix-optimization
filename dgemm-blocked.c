@@ -6,14 +6,25 @@
  *    Support CBLAS interface
  */
 
+#include <string.h>
 const char *dgemm_desc = "Simple blocked dgemm.";
 
-#if !defined(BLOCK_SIZE)
-#define BLOCK_SIZE 37
-#ifndef L1_BLOCK_SIZE
-#define L1_BLOCK_SIZE 4
+#ifndef REGISTER_BLOCK_SIZE
+#define REGISTER_BLOCK_SIZE 4
 #endif
-// #define BLOCK_SIZE 719
+#ifndef FIRST_BLOCK_SIZE
+#define FIRST_BLOCK_SIZE 384
+#endif
+#ifndef SECOND_BLOCK_SIZE
+#define SECOND_BLOCK_SIZE 64
+#endif
+#ifndef THIRD_BLOCK_SIZE
+#define THIRD_BLOCK_SIZE 32
+#endif
+#ifdef PADDING
+double padding_a[THIRD_BLOCK_SIZE*THIRD_BLOCK_SIZE * sizeof(double)];
+double padding_b[THIRD_BLOCK_SIZE*THIRD_BLOCK_SIZE * sizeof(double)];
+double padding_c[THIRD_BLOCK_SIZE*THIRD_BLOCK_SIZE * sizeof(double)];
 #endif
 
 #define min(a, b) (((a) < (b)) ? (a) : (b))
@@ -25,63 +36,57 @@ void do_block_4(int lda, double *A, double *B, double *C);
  * where C is M-by-N, A is M-by-K, and B is K-by-N. */
 static void do_block(int lda, int M, int N, int K, double *A, double *B, double *C)
 {
-#ifdef REGISTERTILE
-  int block_edge_m = M / L1_BLOCK_SIZE * L1_BLOCK_SIZE;
-  int block_edge_n = N / L1_BLOCK_SIZE * L1_BLOCK_SIZE;
-  int block_edge_k = K / L1_BLOCK_SIZE * L1_BLOCK_SIZE;
-  for (int i = 0; i < M; i += L1_BLOCK_SIZE)
-  {
-    for (int j = 0; j < N; j += L1_BLOCK_SIZE)
-    {
-      for (int k = 0; k < K; k += L1_BLOCK_SIZE)
-      {
-        /* compute blocks that can be evenly divided */
-        if (i < block_edge_m && j < block_edge_n && k < block_edge_k)
-        {
-          do_block_4(lda, A + i * lda + k, B + k * lda + j, C + i * lda + j);
-        }
-        /* compute rest of matrix that cannot fit into blocks */
-        else
-        {
-          int i_edge = min(L1_BLOCK_SIZE, M - i);
-          int j_edge = min(L1_BLOCK_SIZE, N - j);
-          int k_edge = min(L1_BLOCK_SIZE, K - k);
-          for (int i1 = i; i1 < i + i_edge; i1++)
-          {
-            for (int j1 = j; j1 < j + j_edge; j1++)
-            {
-              register double cij = C[i1 * lda + j1];
-              for (int k1 = k; k1 < k + k_edge; k1++)
-              {
-                cij += A[i1 * lda + k1] * B[k1 * lda + j1];
-              }
-              C[i1 * lda + j1] = cij;
-            }
-          }
-        }
-      }
-    }
-  }
-#else
   /* For each row i of A */
   for (int i = 0; i < M; ++i)
     /* For each column j of B */
     for (int j = 0; j < N; ++j)
     {
       /* Compute C(i,j) */
-      double cij = C[i * lda + j];
+      register double cij = C[i * lda + j];
       for (int k = 0; k < K; ++k)
-#ifdef TRANSPOSE
-        cij += A[i * lda + k] * B[j * lda + k];
-#else
         cij += A[i * lda + k] * B[k * lda + j];
-#endif
       C[i * lda + j] = cij;
     }
-#endif
 }
 
-#ifdef REGISTERTILE
+static void do_block_kernel(int lda, int M, int N, int K, double *A, double *B, double *C)
+{
+#ifdef PADDING
+if (M != THIRD_BLOCK_SIZE || N != THIRD_BLOCK_SIZE || K != THIRD_BLOCK_SIZE){
+  int i,j,k;
+  memset (padding_a, 0, THIRD_BLOCK_SIZE * THIRD_BLOCK_SIZE * sizeof(double));
+  memset (padding_b, 0, THIRD_BLOCK_SIZE * THIRD_BLOCK_SIZE * sizeof(double));
+  memset (padding_c, 0, THIRD_BLOCK_SIZE * THIRD_BLOCK_SIZE * sizeof(double));
+
+  // for (i = 0; i < M; i++){
+  //   memcpy(padding_a + i * lda, A + i * lda, sizeof(double) * K);
+  // }
+  // for (i = 0; i < K; i++){
+  //   memcpy(padding_b + i * lda, B + i * lda, sizeof(double) * N);
+  // }
+  // for (i = 0; i < M; i++){
+  //   memcpy(padding_c + i * lda, C + i * lda, sizeof(double) * N);
+  // }
+  // for (i = 0; i < M; i += REGISTER_BLOCK_SIZE)
+  //   for (j = 0; j < N; j += REGISTER_BLOCK_SIZE)
+  //     for (k = 0; k < K; k += REGISTER_BLOCK_SIZE)
+  //     {
+  //       do_block_4(lda, padding_a + i * lda + k, padding_b + k * lda + j, padding_c + i * lda + j);
+  //     }
+  // for (i = 0; i < M; i++){
+  //   memcpy(C + i * lda, padding_c + i * lda, sizeof(double) * N);
+  // }
+}
+#endif
+  for (int i = 0; i < M; i += REGISTER_BLOCK_SIZE)
+    for (int j = 0; j < N; j += REGISTER_BLOCK_SIZE)
+      for (int k = 0; k < K; k += REGISTER_BLOCK_SIZE)
+      {
+        do_block_4(lda, A + i * lda + k, B + k * lda + j, C + i * lda + j);
+      }
+}
+
+#ifdef BLOCKS
 #include <immintrin.h>
 #include <avx2intrin.h>
 /* C[4*4] = A[4*4] * B[4*4]
@@ -111,48 +116,67 @@ void do_block_4(int lda, double *A, double *B, double *C)
   _mm256_storeu_pd(C + 3 * lda, c3x);
 }
 #endif
-
 /* This routine performs a dgemm operation
  *  C := C + A * B
  * where A, B, and C are lda-by-lda matrices stored in row-major order
  * On exit, A and B maintain their input values. */
 void square_dgemm(int lda, double *A, double *B, double *C)
 {
-#ifdef TRANSPOSE
-  for (int i = 0; i < lda; ++i)
-    for (int j = i + 1; j < lda; ++j)
-    {
-      double t = B[i * lda + j];
-      B[i * lda + j] = B[j * lda + i];
-      B[j * lda + i] = t;
-    }
-#endif
   /* For each block-row of A */
-  for (int i = 0; i < lda; i += BLOCK_SIZE)
+  for (int i = 0; i < lda; i += FIRST_BLOCK_SIZE)
     /* For each block-column of B */
-    for (int j = 0; j < lda; j += BLOCK_SIZE)
+    for (int k = 0; k < lda; k += FIRST_BLOCK_SIZE)
+      for (int j = 0; j < lda; j += FIRST_BLOCK_SIZE)
       /* Accumulate block dgemms into block of C */
-      for (int k = 0; k < lda; k += BLOCK_SIZE)
       {
-        /* Correct block dimensions if block "goes off edge of" the matrix */
-        int M = min(BLOCK_SIZE, lda - i);
-        int N = min(BLOCK_SIZE, lda - j);
-        int K = min(BLOCK_SIZE, lda - k);
+        int M = min(FIRST_BLOCK_SIZE, lda - i);
+        int N = min(FIRST_BLOCK_SIZE, lda - j);
+        int K = min(FIRST_BLOCK_SIZE, lda - k);
 
-        /* Perform individual block dgemm */
-#ifdef TRANSPOSE
-        do_block(lda, M, N, K, A + i * lda + k, B + j * lda + k, C + i * lda + j);
+#ifdef BLOCKS
+        //second level blocking
+        for (int ii = i; ii < i + M; ii += SECOND_BLOCK_SIZE)
+          for (int kk = k; kk < k + K; kk += SECOND_BLOCK_SIZE)
+            for (int jj = j; jj < j + N; jj += SECOND_BLOCK_SIZE)
+
+            {
+              /* Correct block dimensions if block "goes off edge of" the matrix */
+
+              int MM = min(SECOND_BLOCK_SIZE, i + M - ii);
+              int NN = min(SECOND_BLOCK_SIZE, j + N - jj);
+              int KK = min(SECOND_BLOCK_SIZE, k + K - kk);
+
+              //third level blocking
+              for (int iii = ii; iii < ii + MM; iii += THIRD_BLOCK_SIZE)
+                for (int jjj = jj; jjj < jj + NN; jjj += THIRD_BLOCK_SIZE)
+                  for (int kkk = kk; kkk < kk + KK; kkk += THIRD_BLOCK_SIZE)
+                  {
+                    int MMM = min(THIRD_BLOCK_SIZE, ii + MM - iii);
+                    int NNN = min(THIRD_BLOCK_SIZE, jj + NN - jjj);
+                    int KKK = min(THIRD_BLOCK_SIZE, kk + KK - kkk);
+#endif
+
+                    /* Perform individual block dgemm */
+
+#ifdef BLOCKS
+#ifdef PADDING
+do_block_kernel(lda, MMM, NNN, KKK, A + iii * lda + kkk, B + kkk * lda + jjj, C + iii * lda + jjj);
+#else
+        if (MMM == THIRD_BLOCK_SIZE && NNN == THIRD_BLOCK_SIZE && KKK == THIRD_BLOCK_SIZE)
+        {
+          do_block_kernel(lda, MMM, NNN, KKK, A + iii * lda + kkk, B + kkk * lda + jjj, C + iii * lda + jjj);
+        }
+        else
+        {
+          do_block(lda, MMM, NNN, KKK, A + iii * lda + kkk, B + kkk * lda + jjj, C + iii * lda + jjj);
+        }
+#endif
 #else
         do_block(lda, M, N, K, A + i * lda + k, B + k * lda + j, C + i * lda + j);
 #endif
-      }
-#if TRANSPOSE
-  for (int i = 0; i < lda; ++i)
-    for (int j = i + 1; j < lda; ++j)
-    {
-      double t = B[i * lda + j];
-      B[i * lda + j] = B[j * lda + i];
-      B[j * lda + i] = t;
-    }
+#ifdef BLOCKS
+                  }
+            }
 #endif
+      }
 }
