@@ -58,24 +58,24 @@ if (M != THIRD_BLOCK_SIZE || N != THIRD_BLOCK_SIZE || K != THIRD_BLOCK_SIZE){
   memset (padding_b, 0, THIRD_BLOCK_SIZE * THIRD_BLOCK_SIZE * sizeof(double));
   memset (padding_c, 0, THIRD_BLOCK_SIZE * THIRD_BLOCK_SIZE * sizeof(double));
 
-  // for (i = 0; i < M; i++){
-  //   memcpy(padding_a + i * lda, A + i * lda, sizeof(double) * K);
-  // }
-  // for (i = 0; i < K; i++){
-  //   memcpy(padding_b + i * lda, B + i * lda, sizeof(double) * N);
-  // }
-  // for (i = 0; i < M; i++){
-  //   memcpy(padding_c + i * lda, C + i * lda, sizeof(double) * N);
-  // }
-  // for (i = 0; i < M; i += REGISTER_BLOCK_SIZE)
-  //   for (j = 0; j < N; j += REGISTER_BLOCK_SIZE)
-  //     for (k = 0; k < K; k += REGISTER_BLOCK_SIZE)
-  //     {
-  //       do_block_4(lda, padding_a + i * lda + k, padding_b + k * lda + j, padding_c + i * lda + j);
-  //     }
-  // for (i = 0; i < M; i++){
-  //   memcpy(C + i * lda, padding_c + i * lda, sizeof(double) * N);
-  // }
+  for (i = 0; i < M; i++){
+    memcpy(padding_a + i * K, A + i * lda, sizeof(double) * K);
+  }
+  for (i = 0; i < K; i++){
+    memcpy(padding_b + i * N, B + i * lda, sizeof(double) * N);
+  }
+  for (i = 0; i < M; i++){
+    memcpy(padding_c + i * N, C + i * lda, sizeof(double) * N);
+  }
+  for (i = 0; i < M; i += REGISTER_BLOCK_SIZE)
+    for (j = 0; j < N; j += REGISTER_BLOCK_SIZE)
+      for (k = 0; k < K; k += REGISTER_BLOCK_SIZE)
+      {
+        do_block_4(lda, padding_a + i * K + k, padding_b + k * N + j, padding_c + i * N + j);
+      }
+  for (i = 0; i < M; i++){
+    memcpy(C + i * lda, padding_c + i * N, sizeof(double) * N);
+  }
 }
 #endif
   for (int i = 0; i < M; i += REGISTER_BLOCK_SIZE)
