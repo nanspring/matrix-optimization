@@ -22,9 +22,9 @@ const char *dgemm_desc = "Simple blocked dgemm.";
 #define THIRD_BLOCK_SIZE 32
 #endif
 #ifdef PADDING
-double padding_a[THIRD_BLOCK_SIZE * THIRD_BLOCK_SIZE * sizeof(double)];
-double padding_b[THIRD_BLOCK_SIZE * THIRD_BLOCK_SIZE * sizeof(double)];
-double padding_c[THIRD_BLOCK_SIZE * THIRD_BLOCK_SIZE * sizeof(double)];
+double padding_a[4 * 4];
+double padding_b[4 * 4];
+double padding_c[4 * 4];
 #endif
 
 #define min(a, b) (((a) < (b)) ? (a) : (b))
@@ -53,30 +53,29 @@ static void do_block_kernel(int lda, int M, int N, int K, double *A, double *B, 
 {
 #ifdef PADDING
   int i, j, k;
-  memset(padding_a, 0, THIRD_BLOCK_SIZE * THIRD_BLOCK_SIZE * sizeof(double));
-  memset(padding_b, 0, THIRD_BLOCK_SIZE * THIRD_BLOCK_SIZE * sizeof(double));
-  memset(padding_c, 0, THIRD_BLOCK_SIZE * THIRD_BLOCK_SIZE * sizeof(double));
-
-  for (i = 0; i < M; i++)
-  {
-    memcpy(padding_a + i * THIRD_BLOCK_SIZE, A + i * lda, sizeof(double) * K);
-  }
-  for (i = 0; i < K; i++)
-  {
-    memcpy(padding_b + i * THIRD_BLOCK_SIZE, B + i * lda, sizeof(double) * N);
-  }
 
   for (i = 0; i < M; i += REGISTER_BLOCK_SIZE)
     for (j = 0; j < N; j += REGISTER_BLOCK_SIZE)
       for (k = 0; k < K; k += REGISTER_BLOCK_SIZE)
       {
-        do_block_4(THIRD_BLOCK_SIZE, padding_a + i * THIRD_BLOCK_SIZE + k, padding_b + k * THIRD_BLOCK_SIZE + j, padding_c + i * THIRD_BLOCK_SIZE + j);
+        memset(padding_a, 0, 4 * 4 * sizeof(double));
+        memset(padding_b, 0, 4 * 4 * sizeof(double));
+        memset(padding_c, 0, 4 * 4 * sizeof(double));
+        for (int ii = 0; ii < min(M - i, 4); ii++)
+        {
+          memcpy(padding_a + ii * 4, A + (i + ii) * lda + k, sizeof(double) * min(K - k, 4));
+        }
+        for (int ii = 0; ii < min(K - k, 4); ii++)
+        {
+          memcpy(padding_b + ii * 4, B + (k + ii) * lda + j, sizeof(double) * min(N - j, 4));
+        }
+        do_block_4(4, padding_a, padding_b, padding_c);
+        for (int ii = 0; ii < 4; ii++)
+          for (int jj = 0; jj < 4; jj++)
+          {
+            C[(i + ii) * lda + j + jj] += padding_c[ii * 4 + jj];
+          }
       }
-  for (i = 0; i < M; i++)
-    for (j = 0; j < N; j++)
-    {
-      C[i * lda + j] += padding_c[i * THIRD_BLOCK_SIZE + j];
-    }
 #else
   for (int i = 0; i < M; i += REGISTER_BLOCK_SIZE)
     for (int j = 0; j < N; j += REGISTER_BLOCK_SIZE)
