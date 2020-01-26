@@ -113,7 +113,7 @@ static void do_block_kernel(int lda, int M, int N, int K, double *A, double *B, 
     for(j = 0; j < N; j++){
     C[i * lda+j] = padding_c [i*n+j];
   }
-  // printMatrix(n,padding_c);
+
   // for (int i = 0; i < M; i += REGISTER_BLOCK_SIZE)
   //   for (int j = 0; j < N; j += REGISTER_BLOCK_SIZE)
   //     for (int k = 0; k < K; k += REGISTER_BLOCK_SIZE)
