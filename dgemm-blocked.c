@@ -22,9 +22,9 @@ const char *dgemm_desc = "Simple blocked dgemm.";
 #define THIRD_BLOCK_SIZE 32
 #endif
 #ifdef PADDING
-double padding_a[THIRD_BLOCK_SIZE*THIRD_BLOCK_SIZE * sizeof(double)];
-double padding_b[THIRD_BLOCK_SIZE*THIRD_BLOCK_SIZE * sizeof(double)];
-double padding_c[THIRD_BLOCK_SIZE*THIRD_BLOCK_SIZE * sizeof(double)];
+double padding_a[THIRD_BLOCK_SIZE * THIRD_BLOCK_SIZE * sizeof(double)];
+double padding_b[THIRD_BLOCK_SIZE * THIRD_BLOCK_SIZE * sizeof(double)];
+double padding_c[THIRD_BLOCK_SIZE * THIRD_BLOCK_SIZE * sizeof(double)];
 #endif
 
 #define min(a, b) (((a) < (b)) ? (a) : (b))
@@ -52,38 +52,39 @@ static void do_block(int lda, int M, int N, int K, double *A, double *B, double 
 static void do_block_kernel(int lda, int M, int N, int K, double *A, double *B, double *C)
 {
 #ifdef PADDING
-if (M != THIRD_BLOCK_SIZE || N != THIRD_BLOCK_SIZE || K != THIRD_BLOCK_SIZE){
-  int i,j,k;
-  memset (padding_a, 0, THIRD_BLOCK_SIZE * THIRD_BLOCK_SIZE * sizeof(double));
-  memset (padding_b, 0, THIRD_BLOCK_SIZE * THIRD_BLOCK_SIZE * sizeof(double));
-  memset (padding_c, 0, THIRD_BLOCK_SIZE * THIRD_BLOCK_SIZE * sizeof(double));
+  int i, j, k;
+  memset(padding_a, 0, THIRD_BLOCK_SIZE * THIRD_BLOCK_SIZE * sizeof(double));
+  memset(padding_b, 0, THIRD_BLOCK_SIZE * THIRD_BLOCK_SIZE * sizeof(double));
+  memset(padding_c, 0, THIRD_BLOCK_SIZE * THIRD_BLOCK_SIZE * sizeof(double));
 
-  for (i = 0; i < M; i++){
-    memcpy(padding_a + i * K, A + i * lda, sizeof(double) * K);
+  for (i = 0; i < M; i++)
+  {
+    memcpy(padding_a + i * THIRD_BLOCK_SIZE, A + i * lda, sizeof(double) * K);
   }
-  for (i = 0; i < K; i++){
-    memcpy(padding_b + i * N, B + i * lda, sizeof(double) * N);
+  for (i = 0; i < K; i++)
+  {
+    memcpy(padding_b + i * THIRD_BLOCK_SIZE, B + i * lda, sizeof(double) * N);
   }
-  for (i = 0; i < M; i++){
-    memcpy(padding_c + i * N, C + i * lda, sizeof(double) * N);
-  }
+
   for (i = 0; i < M; i += REGISTER_BLOCK_SIZE)
     for (j = 0; j < N; j += REGISTER_BLOCK_SIZE)
       for (k = 0; k < K; k += REGISTER_BLOCK_SIZE)
       {
-        do_block_4(lda, padding_a + i * K + k, padding_b + k * N + j, padding_c + i * N + j);
+        do_block_4(THIRD_BLOCK_SIZE, padding_a + i * THIRD_BLOCK_SIZE + k, padding_b + k * THIRD_BLOCK_SIZE + j, padding_c + i * THIRD_BLOCK_SIZE + j);
       }
-  for (i = 0; i < M; i++){
-    memcpy(C + i * lda, padding_c + i * N, sizeof(double) * N);
-  }
-}
-#endif
+  for (i = 0; i < M; i++)
+    for (j = 0; j < N; j++)
+    {
+      C[i * lda + j] += padding_c[i * THIRD_BLOCK_SIZE + j];
+    }
+#else
   for (int i = 0; i < M; i += REGISTER_BLOCK_SIZE)
     for (int j = 0; j < N; j += REGISTER_BLOCK_SIZE)
       for (int k = 0; k < K; k += REGISTER_BLOCK_SIZE)
       {
         do_block_4(lda, A + i * lda + k, B + k * lda + j, C + i * lda + j);
       }
+#endif
 }
 
 #ifdef BLOCKS
@@ -160,16 +161,16 @@ void square_dgemm(int lda, double *A, double *B, double *C)
 
 #ifdef BLOCKS
 #ifdef PADDING
-do_block_kernel(lda, MMM, NNN, KKK, A + iii * lda + kkk, B + kkk * lda + jjj, C + iii * lda + jjj);
+                    do_block_kernel(lda, MMM, NNN, KKK, A + iii * lda + kkk, B + kkk * lda + jjj, C + iii * lda + jjj);
 #else
-        if (MMM == THIRD_BLOCK_SIZE && NNN == THIRD_BLOCK_SIZE && KKK == THIRD_BLOCK_SIZE)
-        {
-          do_block_kernel(lda, MMM, NNN, KKK, A + iii * lda + kkk, B + kkk * lda + jjj, C + iii * lda + jjj);
-        }
-        else
-        {
-          do_block(lda, MMM, NNN, KKK, A + iii * lda + kkk, B + kkk * lda + jjj, C + iii * lda + jjj);
-        }
+                    if (MMM == THIRD_BLOCK_SIZE && NNN == THIRD_BLOCK_SIZE && KKK == THIRD_BLOCK_SIZE)
+                    {
+                      do_block_kernel(lda, MMM, NNN, KKK, A + iii * lda + kkk, B + kkk * lda + jjj, C + iii * lda + jjj);
+                    }
+                    else
+                    {
+                      do_block(lda, MMM, NNN, KKK, A + iii * lda + kkk, B + kkk * lda + jjj, C + iii * lda + jjj);
+                    }
 #endif
 #else
         do_block(lda, M, N, K, A + i * lda + k, B + k * lda + j, C + i * lda + j);
