@@ -100,7 +100,7 @@ static void do_block_kernel(int lda, int M, int N, int K, double *A, double *B, 
 
 #else
   double padding_c[n*n * sizeof(double)];
-  //int ldc = 4;
+
   memset (padding_c, 0, n*n * sizeof(double));
   packing_padding(lda,  M, N, C, padding_c);
   for (int i = 0; i < M; i += REGISTER_BLOCK_SIZE)
