@@ -83,9 +83,7 @@ static void do_block_kernel(int lda, int M, int N, int K, double *A, double *B, 
   packing_padding(lda, K, N, B,padding_b);
   packing_padding(lda,  M, N, C,padding_c);
 
-  // printMatrix( K,A);
-  // printMatrix(THIRD_BLOCK_SIZE,padding_a);
-  // printf("++++++++++++++++++++\n");
+  
   for (i = 0; i < M; i += REGISTER_BLOCK_SIZE)
     for (j = 0; j < N; j += REGISTER_BLOCK_SIZE)
       for (k = 0; k < K; k += REGISTER_BLOCK_SIZE)
