@@ -22,15 +22,15 @@ const char *dgemm_desc = "Simple blocked dgemm.";
 #define THIRD_BLOCK_SIZE 48
 #endif
 #ifdef PADDING
-double padding_a[THIRD_BLOCK_SIZE * THIRD_BLOCK_SIZE];
-double padding_b[THIRD_BLOCK_SIZE * THIRD_BLOCK_SIZE];
-double padding_c[THIRD_BLOCK_SIZE * THIRD_BLOCK_SIZE];
+double padding_a[THIRD_BLOCK_SIZE * THIRD_BLOCK_SIZE] __attribute__((aligned(256)));
+double padding_b[THIRD_BLOCK_SIZE * THIRD_BLOCK_SIZE] __attribute__((aligned(256)));
+double padding_c[THIRD_BLOCK_SIZE * THIRD_BLOCK_SIZE] __attribute__((aligned(256)));
 #endif
 
 #define min(a, b) (((a) < (b)) ? (a) : (b))
 
 // void do_block_register(int lda, double *A, double *B, double *C);
-void do_block_48(int n, double *A, double *B, double *C);
+void do_block_48(int n, int K, double *A, double *B, double *C);
 
 /* This auxiliary subroutine performs a smaller dgemm operation
  *  C := C + A * B
@@ -69,9 +69,8 @@ static void do_block_kernel(int lda, int M, int N, int K, double *A, double *B, 
 
   for (i = 0; i < M; i += 4)
     for (j = 0; j < N; j += 8)
-      for (k = 0; k < K; k += 4)
       {
-        do_block_48(THIRD_BLOCK_SIZE, padding_a + i * THIRD_BLOCK_SIZE + k, padding_b + k * THIRD_BLOCK_SIZE + j, padding_c + i * THIRD_BLOCK_SIZE + j);
+        do_block_48(THIRD_BLOCK_SIZE, K, padding_a + i * THIRD_BLOCK_SIZE + k, padding_b + k * THIRD_BLOCK_SIZE + j, padding_c + i * THIRD_BLOCK_SIZE + j);
       }
   for (i = 0; i < M; i++)
     for (j = 0; j < N; j++)
@@ -93,98 +92,46 @@ static void do_block_kernel(int lda, int M, int N, int K, double *A, double *B, 
 #include <avx2intrin.h>
 /* C[4*8] = A[4*4] * B[4*8]
 */
-void do_block_48(int n, double *A, double *B, double *C)
-{
-  int lda = n;
-  register __m256d c0x = _mm256_loadu_pd(C);
+void do_block_48(int lda,int K, double *A, double *B, double *C){
+  register  __m256d c0x = _mm256_loadu_pd(C);
   register __m256d c1x = _mm256_loadu_pd(C + lda);
-  register __m256d c2x = _mm256_loadu_pd(C + 2 * lda);
-  register __m256d c3x = _mm256_loadu_pd(C + 3 * lda);
+  register __m256d c2x = _mm256_loadu_pd(C + 2*lda);
+  register __m256d c3x = _mm256_loadu_pd(C + 3*lda);
 
-  register __m256d c04x = _mm256_loadu_pd(C + 4);
+  register __m256d c04x = _mm256_loadu_pd(C+4);
   register __m256d c14x = _mm256_loadu_pd(C + lda + 4);
-  register __m256d c24x = _mm256_loadu_pd(C + 2 * lda + 4);
-  register __m256d c34x = _mm256_loadu_pd(C + 3 * lda + 4);
+  register __m256d c24x = _mm256_loadu_pd(C+ 2*lda + 4);
+  register __m256d c34x = _mm256_loadu_pd(C + 3*lda + 4);
+  
+  for (int kk = 0; kk < K; kk++)
+  {
+    register __m256d a0x = _mm256_broadcast_sd(A + kk);
+    register __m256d a1x = _mm256_broadcast_sd(A + kk + lda);
+    register __m256d a2x = _mm256_broadcast_sd(A + kk + 2*lda);
+    register __m256d a3x = _mm256_broadcast_sd(A + kk + 3* lda);
+    register __m256d b1 = _mm256_loadu_pd(B + kk * lda );
+    register __m256d b2 = _mm256_loadu_pd(B + kk * lda + 4 );
 
-  // for (int kk = 0; kk < 4; kk++)
-  // {
-  register __m256d a0x = _mm256_broadcast_sd(A);
-  register __m256d a1x = _mm256_broadcast_sd(A + lda);
-  register __m256d a2x = _mm256_broadcast_sd(A + 2 * lda);
-  register __m256d a3x = _mm256_broadcast_sd(A + 3 * lda);
-  register __m256d b1 = _mm256_loadu_pd(B);
-  register __m256d b2 = _mm256_loadu_pd(B + 4);
+    c0x = _mm256_fmadd_pd(a0x, b1, c0x);
+    c1x = _mm256_fmadd_pd(a1x, b1, c1x);
+    c2x = _mm256_fmadd_pd(a2x, b1, c2x);
+    c3x = _mm256_fmadd_pd(a3x, b1, c3x);
 
-  c0x = _mm256_fmadd_pd(a0x, b1, c0x);
-  c1x = _mm256_fmadd_pd(a1x, b1, c1x);
-  c2x = _mm256_fmadd_pd(a2x, b1, c2x);
-  c3x = _mm256_fmadd_pd(a3x, b1, c3x);
-
-  c04x = _mm256_fmadd_pd(a0x, b2, c04x);
-  c14x = _mm256_fmadd_pd(a1x, b2, c14x);
-  c24x = _mm256_fmadd_pd(a2x, b2, c24x);
-  c34x = _mm256_fmadd_pd(a3x, b2, c34x);
-
-  a0x = _mm256_broadcast_sd(A + 1);
-  a1x = _mm256_broadcast_sd(A + 1 + lda);
-  a2x = _mm256_broadcast_sd(A + 1 + 2 * lda);
-  a3x = _mm256_broadcast_sd(A + 1 + 3 * lda);
-  b1 = _mm256_loadu_pd(B + lda);
-  b2 = _mm256_loadu_pd(B + lda + 4);
-
-  c0x = _mm256_fmadd_pd(a0x, b1, c0x);
-  c1x = _mm256_fmadd_pd(a1x, b1, c1x);
-  c2x = _mm256_fmadd_pd(a2x, b1, c2x);
-  c3x = _mm256_fmadd_pd(a3x, b1, c3x);
-
-  c04x = _mm256_fmadd_pd(a0x, b2, c04x);
-  c14x = _mm256_fmadd_pd(a1x, b2, c14x);
-  c24x = _mm256_fmadd_pd(a2x, b2, c24x);
-  c34x = _mm256_fmadd_pd(a3x, b2, c34x);
-
-  a0x = _mm256_broadcast_sd(A + 2);
-  a1x = _mm256_broadcast_sd(A + 2 + lda);
-  a2x = _mm256_broadcast_sd(A + 2 + 2 * lda);
-  a3x = _mm256_broadcast_sd(A + 2 + 3 * lda);
-  b1 = _mm256_loadu_pd(B + 2 * lda);
-  b2 = _mm256_loadu_pd(B + 2 * lda + 4);
-
-  c0x = _mm256_fmadd_pd(a0x, b1, c0x);
-  c1x = _mm256_fmadd_pd(a1x, b1, c1x);
-  c2x = _mm256_fmadd_pd(a2x, b1, c2x);
-  c3x = _mm256_fmadd_pd(a3x, b1, c3x);
-
-  c04x = _mm256_fmadd_pd(a0x, b2, c04x);
-  c14x = _mm256_fmadd_pd(a1x, b2, c14x);
-  c24x = _mm256_fmadd_pd(a2x, b2, c24x);
-  c34x = _mm256_fmadd_pd(a3x, b2, c34x);
-
-  a0x = _mm256_broadcast_sd(A + 3);
-  a1x = _mm256_broadcast_sd(A + 3 + lda);
-  a2x = _mm256_broadcast_sd(A + 3 + 2 * lda);
-  a3x = _mm256_broadcast_sd(A + 3 + 3 * lda);
-  b1 = _mm256_loadu_pd(B + 3 * lda);
-  b2 = _mm256_loadu_pd(B + 3 * lda + 4);
-
-  c0x = _mm256_fmadd_pd(a0x, b1, c0x);
-  c1x = _mm256_fmadd_pd(a1x, b1, c1x);
-  c2x = _mm256_fmadd_pd(a2x, b1, c2x);
-  c3x = _mm256_fmadd_pd(a3x, b1, c3x);
-
-  c04x = _mm256_fmadd_pd(a0x, b2, c04x);
-  c14x = _mm256_fmadd_pd(a1x, b2, c14x);
-  c24x = _mm256_fmadd_pd(a2x, b2, c24x);
-  c34x = _mm256_fmadd_pd(a3x, b2, c34x);
-  // }
+    c04x = _mm256_fmadd_pd(a0x, b2, c04x);
+    c14x = _mm256_fmadd_pd(a1x, b2, c14x);
+    c24x = _mm256_fmadd_pd(a2x, b2, c24x);
+    c34x = _mm256_fmadd_pd(a3x, b2, c34x);
+  }
   _mm256_storeu_pd(C, c0x);
   _mm256_storeu_pd(C + lda, c1x);
-  _mm256_storeu_pd(C + 2 * lda, c2x);
-  _mm256_storeu_pd(C + 3 * lda, c3x);
+  _mm256_storeu_pd(C + 2*lda , c2x);
+  _mm256_storeu_pd(C + 3*lda, c3x);
 
   _mm256_storeu_pd(C + 4, c04x);
   _mm256_storeu_pd(C + lda + 4, c14x);
-  _mm256_storeu_pd(C + 2 * lda + 4, c24x);
-  _mm256_storeu_pd(C + 3 * lda + 4, c34x);
+  _mm256_storeu_pd(C + 2*lda + 4, c24x);
+  _mm256_storeu_pd(C + 3*lda + 4, c34x);
+
 }
 #endif
 /* This routine performs a dgemm operation
