@@ -53,7 +53,7 @@ static void do_block(int lda, int M, int N, int K, double *A, double *B, double 
 static void do_block_kernel(int lda, int M, int N, int K, double *A, double *B, double *C)
 {
 #ifdef PADDING
-  int i, j, k;
+  int i, j;
   memset(padding_a, 0, THIRD_BLOCK_SIZE * THIRD_BLOCK_SIZE * sizeof(double));
   memset(padding_b, 0, THIRD_BLOCK_SIZE * THIRD_BLOCK_SIZE * sizeof(double));
   memset(padding_c, 0, THIRD_BLOCK_SIZE * THIRD_BLOCK_SIZE * sizeof(double));
@@ -70,7 +70,7 @@ static void do_block_kernel(int lda, int M, int N, int K, double *A, double *B, 
   for (i = 0; i < M; i += 4)
     for (j = 0; j < N; j += 8)
       {
-        do_block_48(THIRD_BLOCK_SIZE, K, padding_a + i * THIRD_BLOCK_SIZE + k, padding_b + k * THIRD_BLOCK_SIZE + j, padding_c + i * THIRD_BLOCK_SIZE + j);
+        do_block_48(THIRD_BLOCK_SIZE, K, padding_a + i * THIRD_BLOCK_SIZE, padding_b + j, padding_c + i * THIRD_BLOCK_SIZE + j);
       }
   for (i = 0; i < M; i++)
     for (j = 0; j < N; j++)
@@ -80,9 +80,8 @@ static void do_block_kernel(int lda, int M, int N, int K, double *A, double *B, 
 #else
   for (int i = 0; i < M; i += REGISTER_BLOCK_SIZE)
     for (int j = 0; j < N; j += 8)
-      for (int k = 0; k < K; k += REGISTER_BLOCK_SIZE)
       {
-        do_block_48(lda, A + i * lda + k, B + k * lda + j, C + i * lda + j);
+        do_block_48(lda, K, A + i * lda, B + j, C + i * lda + j);
       }
 #endif
 }
