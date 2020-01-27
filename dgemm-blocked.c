@@ -30,12 +30,12 @@ double padding_c[THIRD_BLOCK_SIZE * THIRD_BLOCK_SIZE] __attribute__((aligned(256
 #define min(a, b) (((a) < (b)) ? (a) : (b))
 
 // void do_block_register(int lda, double *A, double *B, double *C);
-void do_block_48(int n, int K, double *A, double *B, double *C);
+void do_block_48(int n, int K, double *restrict A, double *restrict B, double *restrict C);
 
 /* This auxiliary subroutine performs a smaller dgemm operation
  *  C := C + A * B
  * where C is M-by-N, A is M-by-K, and B is K-by-N. */
-static void do_block(int lda, int M, int N, int K, double *A, double *B, double *C)
+static void do_block(int lda, int M, int N, int K, double *restrict A, double *restrict B, double *restrict C)
 {
   /* For each row i of A */
   for (int i = 0; i < M; ++i)
@@ -50,7 +50,7 @@ static void do_block(int lda, int M, int N, int K, double *A, double *B, double 
     }
 }
 
-static void do_block_kernel(int lda, int M, int N, int K, double *A, double *B, double *C)
+static void do_block_kernel(int lda, int M, int N, int K, double *restrict A, double *restrict B, double *restrict C)
 {
 #ifdef PADDING
   int i, j;
@@ -69,9 +69,9 @@ static void do_block_kernel(int lda, int M, int N, int K, double *A, double *B, 
 
   for (i = 0; i < M; i += 4)
     for (j = 0; j < N; j += 8)
-      {
-        do_block_48(THIRD_BLOCK_SIZE, K, padding_a + i * THIRD_BLOCK_SIZE, padding_b + j, padding_c + i * THIRD_BLOCK_SIZE + j);
-      }
+    {
+      do_block_48(THIRD_BLOCK_SIZE, K, padding_a + i * THIRD_BLOCK_SIZE, padding_b + j, padding_c + i * THIRD_BLOCK_SIZE + j);
+    }
   for (i = 0; i < M; i++)
     for (j = 0; j < N; j++)
     {
@@ -80,9 +80,9 @@ static void do_block_kernel(int lda, int M, int N, int K, double *A, double *B, 
 #else
   for (int i = 0; i < M; i += REGISTER_BLOCK_SIZE)
     for (int j = 0; j < N; j += 8)
-      {
-        do_block_48(lda, K, A + i * lda, B + j, C + i * lda + j);
-      }
+    {
+      do_block_48(lda, K, A + i * lda, B + j, C + i * lda + j);
+    }
 #endif
 }
 
@@ -91,25 +91,26 @@ static void do_block_kernel(int lda, int M, int N, int K, double *A, double *B, 
 #include <avx2intrin.h>
 /* C[4*8] = A[4*4] * B[4*8]
 */
-void do_block_48(int lda,int K, double *A, double *B, double *C){
-  register  __m256d c0x = _mm256_loadu_pd(C);
+void do_block_48(int lda, int K, double *restrict A, double *restrict B, double *restrict C)
+{
+  register __m256d c0x = _mm256_loadu_pd(C);
   register __m256d c1x = _mm256_loadu_pd(C + lda);
-  register __m256d c2x = _mm256_loadu_pd(C + 2*lda);
-  register __m256d c3x = _mm256_loadu_pd(C + 3*lda);
+  register __m256d c2x = _mm256_loadu_pd(C + 2 * lda);
+  register __m256d c3x = _mm256_loadu_pd(C + 3 * lda);
 
-  register __m256d c04x = _mm256_loadu_pd(C+4);
+  register __m256d c04x = _mm256_loadu_pd(C + 4);
   register __m256d c14x = _mm256_loadu_pd(C + lda + 4);
-  register __m256d c24x = _mm256_loadu_pd(C+ 2*lda + 4);
-  register __m256d c34x = _mm256_loadu_pd(C + 3*lda + 4);
-  
+  register __m256d c24x = _mm256_loadu_pd(C + 2 * lda + 4);
+  register __m256d c34x = _mm256_loadu_pd(C + 3 * lda + 4);
+
   for (int kk = 0; kk < K; kk++)
   {
     register __m256d a0x = _mm256_broadcast_sd(A + kk);
     register __m256d a1x = _mm256_broadcast_sd(A + kk + lda);
-    register __m256d a2x = _mm256_broadcast_sd(A + kk + 2*lda);
-    register __m256d a3x = _mm256_broadcast_sd(A + kk + 3* lda);
-    register __m256d b1 = _mm256_loadu_pd(B + kk * lda );
-    register __m256d b2 = _mm256_loadu_pd(B + kk * lda + 4 );
+    register __m256d a2x = _mm256_broadcast_sd(A + kk + 2 * lda);
+    register __m256d a3x = _mm256_broadcast_sd(A + kk + 3 * lda);
+    register __m256d b1 = _mm256_loadu_pd(B + kk * lda);
+    register __m256d b2 = _mm256_loadu_pd(B + kk * lda + 4);
 
     c0x = _mm256_fmadd_pd(a0x, b1, c0x);
     c1x = _mm256_fmadd_pd(a1x, b1, c1x);
@@ -123,21 +124,20 @@ void do_block_48(int lda,int K, double *A, double *B, double *C){
   }
   _mm256_storeu_pd(C, c0x);
   _mm256_storeu_pd(C + lda, c1x);
-  _mm256_storeu_pd(C + 2*lda , c2x);
-  _mm256_storeu_pd(C + 3*lda, c3x);
+  _mm256_storeu_pd(C + 2 * lda, c2x);
+  _mm256_storeu_pd(C + 3 * lda, c3x);
 
   _mm256_storeu_pd(C + 4, c04x);
   _mm256_storeu_pd(C + lda + 4, c14x);
-  _mm256_storeu_pd(C + 2*lda + 4, c24x);
-  _mm256_storeu_pd(C + 3*lda + 4, c34x);
-
+  _mm256_storeu_pd(C + 2 * lda + 4, c24x);
+  _mm256_storeu_pd(C + 3 * lda + 4, c34x);
 }
 #endif
 /* This routine performs a dgemm operation
  *  C := C + A * B
  * where A, B, and C are lda-by-lda matrices stored in row-major order
  * On exit, A and B maintain their input values. */
-void square_dgemm(int lda, double *A, double *B, double *C)
+void square_dgemm(int lda, double *restrict A, double *restrict B, double *restrict C)
 {
   /* For each block-row of A */
   for (int i = 0; i < lda; i += FIRST_BLOCK_SIZE)
