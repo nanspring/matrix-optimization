@@ -13,14 +13,20 @@ const char *dgemm_desc = "Simple blocked dgemm.";
 #define REGISTER_BLOCK_SIZE 4
 #endif
 #ifndef FIRST_BLOCK_SIZE
-#define FIRST_BLOCK_SIZE 384
+#define FIRST_BLOCK_SIZE 432
 #endif
 #ifndef SECOND_BLOCK_SIZE
-#define SECOND_BLOCK_SIZE 96
+#define SECOND_BLOCK_SIZE 216
 #endif
 #ifndef THIRD_BLOCK_SIZE
-#define THIRD_BLOCK_SIZE 48
+#define THIRD_BLOCK_SIZE 108
 #endif
+#ifdef PADDING
+double padding_a[THIRD_BLOCK_SIZE * THIRD_BLOCK_SIZE] __attribute__((aligned(256)));
+double padding_b[THIRD_BLOCK_SIZE * THIRD_BLOCK_SIZE] __attribute__((aligned(256)));
+double padding_c[THIRD_BLOCK_SIZE * THIRD_BLOCK_SIZE] __attribute__((aligned(256)));
+#endif
+
 
 #define min(a, b) (((a) < (b)) ? (a) : (b))
 
@@ -56,10 +62,6 @@ static void do_block_kernel(int lda, int M, int N, int K, double * restrict A, d
     int i,j,k;
    
 #ifdef PADDING
-  
-  double padding_a[n*n * sizeof(double)];
-  double padding_b[n*n * sizeof(double)];
-  double padding_c[n*n * sizeof(double)];
   memset (padding_a, 0, n*n * sizeof(double));
   memset (padding_b, 0, n*n * sizeof(double));
   memset (padding_c, 0, n*n * sizeof(double));
@@ -68,11 +70,11 @@ static void do_block_kernel(int lda, int M, int N, int K, double * restrict A, d
   packing_padding(lda, K, N, B,padding_b);
 
   
-  for (i = 0; i < M; i += 4)
-    for (j = 0; j < N; j += 8)
+  for (i = 0; i < M; i += 3)
+    for (j = 0; j < N; j += 12)
       {
         //do_test_block_4_unroll(n,padding_a + i * n + k, padding_b + k * n + j, padding_c + i * n + j);
-        do_block_48(n,K,padding_a + i * n + k, padding_b + k * n + j, padding_c + i * n + j);
+        do_block_312(n,K,padding_a + i * n + k, padding_b + k * n + j, padding_c + i * n + j);
       }
 
   for (i = 0; i < M; i++)
