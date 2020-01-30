@@ -13,32 +13,49 @@ If you worked alone leave column B blank
 
 (1) List the names of your team members:
 
-A:
+A: Ansheng Xu
 
  
-B:
+B: Qingtao Sun
 
  
  
 (2) Estimate how much time each team member devoted to this project, in HOURS.
 
   	                        A 	       B
-meetings 	  	  	 
-coding 	  	  	 
-writeup 	  	  	 
-planning (alone) 	  	  	 
-total (including meetings) 	  	  	 
+meetings 	  	  	        3          3
+coding 	  	  	            8          8
+writeup 	  	  	        3          2
+planning (alone) 	  	  	4          2
+total (including meetings)  18  	   15	 
 
 
 (3) Discuss the following.
 (a) If you worked in a team, what were the major responsibilities
     of each team member?
-(b) Did you complete the assignment?
+    A worked on 3 level blocking, unrolling, different size register tiling and parameter tuning.
+    B worked on packing padding, register tiling, alignment, parameter tuning.
+(b) Did you complete the assignment? 
+    Yes.
 (c) What were your major strengths and weaknesses in doing this
     assignment (individually or in a team)?
     If in a team, also discuss how your team worked together.
+    A is not very familiar with c programming language. But A is good at coming up with new idea.
+    B is more familiar with c programming and encouraging as a team member but less devoted.
+    Our team collaborate very well. We have started early on this project and has been very 
+    productive by working remotely and frequently communicating with each other about our progress, 
+    bugs and help each other.
 (d) What  lessons did you learn from these events.
+    Collaboration is important and is better than working individually.
+    Small things like a simple parameter may have huge impact that you would not think of.
 (e) If in a team, whether and how you plan to change the way
     your work together .
+    The only thing maybe we can try is to physically work together at a location instead of
+    working remotely, though working remotely works as well.
+    B would like to work together closely but have been freaked out by coronavirus, 
+    definitely would do if the situation gets better.  
 (f) Anything else that comes to mind.
+    None.
 (g) What suggestions do you have to improve this assignment?
+    Please make the report requirement clearer.
+
