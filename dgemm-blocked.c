@@ -29,7 +29,6 @@ double padding_c[THIRD_BLOCK_SIZE * THIRD_BLOCK_SIZE] __attribute__((aligned(256
 
 #define min(a, b) (((a) < (b)) ? (a) : (b))
 
-void do_block_4(int lda, double *A, double *B, double *C);
 void do_block_312(int n, int K, double *restrict A, double *restrict B, double *restrict C);
 
 static void packing_padding(int lda, int M, int N, double *A, double *A_copy)
@@ -64,105 +63,7 @@ static void do_block_kernel(int lda, int M, int N, int K, double *restrict A, do
 
 #include <immintrin.h>
 #include <avx2intrin.h>
-void do_test_block_4_unroll(int n, double *A, double *B, double *C)
-{
-  int lda = n;
-  register __m256d c0x = _mm256_loadu_pd(C);
-  register __m256d c1x = _mm256_loadu_pd(C + lda);
-  register __m256d c2x = _mm256_loadu_pd(C + 2 * lda);
-  register __m256d c3x = _mm256_loadu_pd(C + 3 * lda);
 
-  register __m256d a0x = _mm256_broadcast_sd(A + 0);
-  register __m256d a1x = _mm256_broadcast_sd(A + 0 + lda);
-  register __m256d a2x = _mm256_broadcast_sd(A + 0 + 2 * lda);
-  register __m256d a3x = _mm256_broadcast_sd(A + 0 + 3 * lda);
-  register __m256d b = _mm256_loadu_pd(B + 0 * lda);
-
-  c0x = _mm256_fmadd_pd(a0x, b, c0x);
-  c1x = _mm256_fmadd_pd(a1x, b, c1x);
-  c2x = _mm256_fmadd_pd(a2x, b, c2x);
-  c3x = _mm256_fmadd_pd(a3x, b, c3x);
-
-  a0x = _mm256_broadcast_sd(A + 1);
-  a1x = _mm256_broadcast_sd(A + 1 + lda);
-  a2x = _mm256_broadcast_sd(A + 1 + 2 * lda);
-  a3x = _mm256_broadcast_sd(A + 1 + 3 * lda);
-  b = _mm256_loadu_pd(B + 1 * lda);
-
-  c0x = _mm256_fmadd_pd(a0x, b, c0x);
-  c1x = _mm256_fmadd_pd(a1x, b, c1x);
-  c2x = _mm256_fmadd_pd(a2x, b, c2x);
-  c3x = _mm256_fmadd_pd(a3x, b, c3x);
-
-  a0x = _mm256_broadcast_sd(A + 2);
-  a1x = _mm256_broadcast_sd(A + 2 + lda);
-  a2x = _mm256_broadcast_sd(A + 2 + 2 * lda);
-  a3x = _mm256_broadcast_sd(A + 2 + 3 * lda);
-  b = _mm256_loadu_pd(B + 2 * lda);
-
-  c0x = _mm256_fmadd_pd(a0x, b, c0x);
-  c1x = _mm256_fmadd_pd(a1x, b, c1x);
-  c2x = _mm256_fmadd_pd(a2x, b, c2x);
-  c3x = _mm256_fmadd_pd(a3x, b, c3x);
-
-  a0x = _mm256_broadcast_sd(A + 3);
-  a1x = _mm256_broadcast_sd(A + 3 + lda);
-  a2x = _mm256_broadcast_sd(A + 3 + 2 * lda);
-  a3x = _mm256_broadcast_sd(A + 3 + 3 * lda);
-  b = _mm256_loadu_pd(B + 3 * lda);
-
-  c0x = _mm256_fmadd_pd(a0x, b, c0x);
-  c1x = _mm256_fmadd_pd(a1x, b, c1x);
-  c2x = _mm256_fmadd_pd(a2x, b, c2x);
-  c3x = _mm256_fmadd_pd(a3x, b, c3x);
-
-  _mm256_storeu_pd(C, c0x);
-  _mm256_storeu_pd(C + lda, c1x);
-  _mm256_storeu_pd(C + 2 * lda, c2x);
-  _mm256_storeu_pd(C + 3 * lda, c3x);
-}
-void do_block_48(int n, int K, double *A, double *B, double *C)
-{
-  int lda = n;
-  register __m256d c0x = _mm256_loadu_pd(C);
-  register __m256d c1x = _mm256_loadu_pd(C + lda);
-  register __m256d c2x = _mm256_loadu_pd(C + 2 * lda);
-  register __m256d c3x = _mm256_loadu_pd(C + 3 * lda);
-
-  register __m256d c04x = _mm256_loadu_pd(C + 4);
-  register __m256d c14x = _mm256_loadu_pd(C + lda + 4);
-  register __m256d c24x = _mm256_loadu_pd(C + 2 * lda + 4);
-  register __m256d c34x = _mm256_loadu_pd(C + 3 * lda + 4);
-
-  for (int kk = 0; kk < K; kk++)
-  {
-    register __m256d a0x = _mm256_broadcast_sd(A + kk);
-    register __m256d a1x = _mm256_broadcast_sd(A + kk + lda);
-    register __m256d a2x = _mm256_broadcast_sd(A + kk + 2 * lda);
-    register __m256d a3x = _mm256_broadcast_sd(A + kk + 3 * lda);
-    register __m256d b1 = _mm256_loadu_pd(B + kk * lda);
-    register __m256d b2 = _mm256_loadu_pd(B + kk * lda + 4);
-
-    c0x = _mm256_fmadd_pd(a0x, b1, c0x);
-    c1x = _mm256_fmadd_pd(a1x, b1, c1x);
-    c2x = _mm256_fmadd_pd(a2x, b1, c2x);
-    c3x = _mm256_fmadd_pd(a3x, b1, c3x);
-
-    c04x = _mm256_fmadd_pd(a0x, b2, c04x);
-    c14x = _mm256_fmadd_pd(a1x, b2, c14x);
-    c24x = _mm256_fmadd_pd(a2x, b2, c24x);
-    c34x = _mm256_fmadd_pd(a3x, b2, c34x);
-  }
-  _mm256_storeu_pd(C, c0x);
-  _mm256_storeu_pd(C + lda, c1x);
-  _mm256_storeu_pd(C + 2 * lda, c2x);
-  _mm256_storeu_pd(C + 3 * lda, c3x);
-
-  _mm256_storeu_pd(C + 4, c04x);
-  _mm256_storeu_pd(C + lda + 4, c14x);
-  _mm256_storeu_pd(C + 2 * lda + 4, c24x);
-  _mm256_storeu_pd(C + 3 * lda + 4, c34x);
-}
 void do_block_312(int n, int K, double *restrict A, double *restrict B, double *restrict C)
 {
   int lda = n;
@@ -211,83 +112,6 @@ void do_block_312(int n, int K, double *restrict A, double *restrict B, double *
   _mm256_storeu_pd(C + 8, c08x);
   _mm256_storeu_pd(C + lda + 8, c18x);
   _mm256_storeu_pd(C + 2 * lda + 8, c28x);
-}
-
-void do_block_28(int n, double *A, double *B, double *C)
-{
-  int lda = n;
-  register __m256d c0x = _mm256_loadu_pd(C);
-  register __m256d c1x = _mm256_loadu_pd(C + lda);
-  register __m256d c04x = _mm256_loadu_pd(C + 4);
-  register __m256d c14x = _mm256_loadu_pd(C + lda + 4);
-
-  for (int kk = 0; kk < 4; kk++)
-  {
-    register __m256d a0x = _mm256_broadcast_sd(A + kk);
-    register __m256d a1x = _mm256_broadcast_sd(A + kk + lda);
-    register __m256d b1 = _mm256_loadu_pd(B + kk * lda);
-    register __m256d b2 = _mm256_loadu_pd(B + kk * lda + 4);
-
-    c0x = _mm256_fmadd_pd(a0x, b1, c0x);
-    c1x = _mm256_fmadd_pd(a1x, b1, c1x);
-    c04x = _mm256_fmadd_pd(a0x, b2, c04x);
-    c14x = _mm256_fmadd_pd(a1x, b2, c14x);
-  }
-  _mm256_storeu_pd(C, c0x);
-  _mm256_storeu_pd(C + lda, c1x);
-  _mm256_storeu_pd(C + 4, c04x);
-  _mm256_storeu_pd(C + lda + 4, c14x);
-}
-void do_test_block_4(int n, double *A, double *B, double *C)
-{
-  int lda = n;
-  register __m256d c0x = _mm256_loadu_pd(C);
-  register __m256d c1x = _mm256_loadu_pd(C + lda);
-  register __m256d c2x = _mm256_loadu_pd(C + 2 * lda);
-  register __m256d c3x = _mm256_loadu_pd(C + 3 * lda);
-  for (int kk = 0; kk < 4; kk++)
-  {
-    register __m256d a0x = _mm256_broadcast_sd(A + kk);
-    register __m256d a1x = _mm256_broadcast_sd(A + kk + lda);
-    register __m256d a2x = _mm256_broadcast_sd(A + kk + 2 * lda);
-    register __m256d a3x = _mm256_broadcast_sd(A + kk + 3 * lda);
-    register __m256d b = _mm256_loadu_pd(B + kk * lda);
-
-    c0x = _mm256_fmadd_pd(a0x, b, c0x);
-    c1x = _mm256_fmadd_pd(a1x, b, c1x);
-    c2x = _mm256_fmadd_pd(a2x, b, c2x);
-    c3x = _mm256_fmadd_pd(a3x, b, c3x);
-  }
-  _mm256_storeu_pd(C, c0x);
-  _mm256_storeu_pd(C + lda, c1x);
-  _mm256_storeu_pd(C + 2 * lda, c2x);
-  _mm256_storeu_pd(C + 3 * lda, c3x);
-}
-/* C[4*4] = A[4*4] * B[4*4]
-*/
-void do_block_4(int lda, double *A, double *B, double *C)
-{
-  register __m256d c0x = _mm256_loadu_pd(C);
-  register __m256d c1x = _mm256_loadu_pd(C + lda);
-  register __m256d c2x = _mm256_loadu_pd(C + 2 * lda);
-  register __m256d c3x = _mm256_loadu_pd(C + 3 * lda);
-  for (int kk = 0; kk < 4; kk++)
-  {
-    register __m256d a0x = _mm256_broadcast_sd(A + kk);
-    register __m256d a1x = _mm256_broadcast_sd(A + kk + lda);
-    register __m256d a2x = _mm256_broadcast_sd(A + kk + 2 * lda);
-    register __m256d a3x = _mm256_broadcast_sd(A + kk + 3 * lda);
-    register __m256d b = _mm256_loadu_pd(B + kk * lda);
-
-    c0x = _mm256_fmadd_pd(a0x, b, c0x);
-    c1x = _mm256_fmadd_pd(a1x, b, c1x);
-    c2x = _mm256_fmadd_pd(a2x, b, c2x);
-    c3x = _mm256_fmadd_pd(a3x, b, c3x);
-  }
-  _mm256_storeu_pd(C, c0x);
-  _mm256_storeu_pd(C + lda, c1x);
-  _mm256_storeu_pd(C + 2 * lda, c2x);
-  _mm256_storeu_pd(C + 3 * lda, c3x);
 }
 
 /* This routine performs a dgemm operation
