@@ -168,4 +168,4 @@ void square_dgemm(int lda, double *A, double *B, double *C)
       }
     }
   }
-}
+} 
